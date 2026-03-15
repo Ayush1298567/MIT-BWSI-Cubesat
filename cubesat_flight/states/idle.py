@@ -13,7 +13,7 @@ from config import IDLE_DURATION_SEC, THROTTLE_BYTES_PER_SEC, DOWNLINK_WINDOW_SE
 from utils.logger import log
 
 
-def idle(storage, coverage, command_listener, pass_number, camera):
+def idle(storage, coverage, command_listener, pass_number, camera, watchdog=None):
     """Run the IDLE state after one imaging pass.
 
     Args:
@@ -61,7 +61,12 @@ def idle(storage, coverage, command_listener, pass_number, camera):
         f"(~{data_budget // 28_000} images at 28 KB avg)"
     )
 
-    time.sleep(IDLE_DURATION_SEC)
+    # Sleep in short chunks so the watchdog stays petted
+    _t0 = time.monotonic()
+    while (time.monotonic() - _t0) < IDLE_DURATION_SEC:
+        if watchdog is not None:
+            watchdog.pet()
+        time.sleep(min(5.0, IDLE_DURATION_SEC - (time.monotonic() - _t0)))
 
     return queue
 

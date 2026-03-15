@@ -40,6 +40,7 @@ def imaging_loop(
     pass_number,
     current_grid_cell,
     get_operator_input,
+    watchdog=None,
 ):
     """Run one imaging pass.
 
@@ -69,6 +70,8 @@ def imaging_loop(
     os.makedirs(IMAGE_DIR, exist_ok=True)
 
     while not end_pass and (time.monotonic() - img_start) < IMAGING_WINDOW_SEC:
+        if watchdog is not None:
+            watchdog.pet()
 
         # --- Process GCS commands ---
         for cmd in command_listener.get_pending():

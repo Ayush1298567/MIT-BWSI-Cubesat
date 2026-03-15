@@ -377,6 +377,7 @@ def main():
                 pass_number=pass_number,
                 current_grid_cell=state_ref["current_grid_cell"],
                 get_operator_input=_get_operator_input,
+                watchdog=watchdog,
             )
 
         captured_this_pass = len(images_this_pass)
@@ -408,6 +409,7 @@ def main():
             command_listener=command_listener,
             pass_number=pass_number,
             camera=camera,
+            watchdog=watchdog,
         )
 
         # Check if any deferred GCS command triggered safe mode.
