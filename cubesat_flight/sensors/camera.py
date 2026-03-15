@@ -34,20 +34,22 @@ class Camera:
     def capture(self, filepath):
         """Capture a JPEG at JPEG_QUALITY and save to filepath.
         Stores the real camera metadata (exposure, gain, lux) for get_metadata()."""
-        self._last_metadata = self._cam.capture_file(
-            filepath,
-            options={"quality": JPEG_QUALITY}
-        )
+        request = self._cam.capture_request()
+        self._last_metadata = request.get_metadata()
+        frame = request.make_array("main")
+        request.release()
+        cv2.imwrite(filepath, frame[:, :, ::-1], [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
         return filepath
 
     def capture_with_recompress(self, filepath, max_bytes):
         """Capture at JPEG_QUALITY. If the file exceeds max_bytes, re-encode
         the saved JPEG at (JPEG_QUALITY - 10) in place using OpenCV and log it.
         Returns the final JPEG quality used."""
-        self._last_metadata = self._cam.capture_file(
-            filepath,
-            options={"quality": JPEG_QUALITY}
-        )
+        request = self._cam.capture_request()
+        self._last_metadata = request.get_metadata()
+        frame = request.make_array("main")
+        request.release()
+        cv2.imwrite(filepath, frame[:, :, ::-1], [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
 
         file_size = os.path.getsize(filepath)
         if file_size <= max_bytes:

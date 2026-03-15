@@ -39,7 +39,8 @@ from config import (
     THROTTLE_BYTES_PER_SEC,
 )
 from comms.command_listener import CommandListener
-from comms.transfer import Transfer
+from comms.transfer import Transfer, send_telemetry_now
+from utils.telemetry import build_telemetry, build_state_telemetry
 from processing.coverage import CoverageTracker
 from processing.metadata import MetadataBuilder
 from processing.quality import QualityGate
@@ -52,7 +53,6 @@ from states.imaging import imaging_loop
 from states.safe_mode import safe_mode
 from storage.manager import StorageManager
 from utils.logger import log, set_state
-from utils.telemetry import build_telemetry
 from utils.thermal import Thermal
 from utils.watchdog import Watchdog
 
@@ -88,6 +88,15 @@ def _get_operator_input():
         return _stdin_q.get_nowait()
     except _queue_mod.Empty:
         return None
+
+
+def _push_state_telemetry(state, imu, thermal, storage, pass_number):
+    """Send a lightweight state-transition telemetry packet to the GCS.
+    Non-fatal: silently continues if GCS is unreachable.
+    """
+    telem = build_state_telemetry(state, imu, thermal, storage, pass_number)
+    ok = send_telemetry_now(telem)
+    log(f"State telemetry sent: {state}" if ok else f"State telemetry not delivered ({state}) — GCS down")
 
 
 # ---------------------------------------------------------------------------
@@ -136,13 +145,14 @@ def _handle_gcs_command(cmd, camera, transfer, state_ref):
 # Wait-for-start-pass loop
 # ---------------------------------------------------------------------------
 
-def _wait_for_start_pass(command_listener, watchdog, camera, transfer, thermal, storage, state_ref):
+def _wait_for_start_pass(command_listener, watchdog, camera, transfer, thermal, storage, state_ref, imu, pass_number):
     """Block until the operator types 'start_pass'.
     Pets the watchdog and handles GCS/operator commands while waiting.
 
     Returns True to begin pass, False to exit main loop (shutdown).
     """
     set_state("WAITING")
+    _push_state_telemetry("WAITING", imu, thermal, storage, pass_number)
     log("Waiting for operator 'start_pass' command...")
     print("\n" + "=" * 60)
     print("READY FOR NEXT PASS")
@@ -159,9 +169,20 @@ def _wait_for_start_pass(command_listener, watchdog, camera, transfer, thermal, 
 
         # GCS commands while waiting.
         for cmd in command_listener.get_pending():
-            _handle_gcs_command(cmd, camera, transfer, state_ref)
-            if state_ref.get("enter_safe"):
-                return "safe_mode"
+            name = cmd.get("cmd")
+            if name == "start_pass":
+                log("GCS start_pass received — beginning pass")
+                return "start"
+            elif name == "cell":
+                try:
+                    state_ref["current_grid_cell"] = (int(cmd["row"]), int(cmd["col"]))
+                    log(f'Grid cell pre-set \u2192 {state_ref["current_grid_cell"]} (GCS)')
+                except (KeyError, ValueError):
+                    log("Malformed cell command from GCS", level="WARN")
+            else:
+                _handle_gcs_command(cmd, camera, transfer, state_ref)
+                if state_ref.get("enter_safe"):
+                    return "safe_mode"
 
         op = _get_operator_input()
         if not op:
@@ -306,7 +327,8 @@ def main():
         # Wait for operator "start_pass"
         # -----------------------------------------------------------------
         action = _wait_for_start_pass(
-            command_listener, watchdog, camera, transfer, thermal, storage, state_ref
+            command_listener, watchdog, camera, transfer, thermal, storage, state_ref,
+            imu=imu, pass_number=pass_number
         )
 
         if action == "shutdown":
@@ -331,6 +353,7 @@ def main():
         # -----------------------------------------------------------------
         set_state("IMAGING")
         log(f"=== PASS {pass_number} — IMAGING ===")
+        _push_state_telemetry("IMAGING", imu, thermal, storage, pass_number)
 
         if boot_result.get("storage_only"):
             log("Storage-only mode: skipping imaging", level="WARN")
@@ -377,6 +400,7 @@ def main():
         # -----------------------------------------------------------------
         set_state("IDLE")
         log(f"=== PASS {pass_number} — IDLE ===")
+        _push_state_telemetry("IDLE", imu, thermal, storage, pass_number)
 
         queue = idle(
             storage=storage,
@@ -402,6 +426,7 @@ def main():
         # -----------------------------------------------------------------
         set_state("DOWNLINK")
         log(f"=== PASS {pass_number} — DOWNLINK ===")
+        _push_state_telemetry("DOWNLINK", imu, thermal, storage, pass_number)
 
         bytes_sent_this_pass = 0
         images_sent_this_pass = 0

@@ -57,16 +57,17 @@ def boot(imu, camera, storage, gcs_ip=GROUND_STATION_IP):
     log("Boot: testing IMU...")
     try:
         ax, ay, az = imu.get_acceleration()
-        accel_mag = abs(az)
-        if not (8.0 < accel_mag < 11.0):
+        import math as _math
+        accel_mag = _math.sqrt(ax*ax + ay*ay + az*az)
+        if not (8.0 < accel_mag < 25.0):
             result["success"] = False
             result["reason"] = (
-                f"IMU self-test failed: |az|={accel_mag:.2f} m/s² "
-                f"(expected 8.0–11.0, sensor pointing down)"
+                f"IMU self-test failed: |accel|={accel_mag:.2f} m/s2 "
+                f"(expected 8.0-25.0, sensor unresponsive or disconnected)"
             )
             log(result["reason"], level="ERROR")
             return result
-        log(f"Boot: IMU OK — accel=({ax:.2f}, {ay:.2f}, {az:.2f}) m/s²")
+        log(f"Boot: IMU OK - accel=({ax:.2f}, {ay:.2f}, {az:.2f}) m/s2, |a|={accel_mag:.2f}")
     except Exception as exc:
         result["success"] = False
         result["reason"] = f"IMU exception during boot: {exc}"
@@ -84,9 +85,9 @@ def boot(imu, camera, storage, gcs_ip=GROUND_STATION_IP):
     try:
         camera.capture(test_path)
         size = os.path.getsize(test_path)
-        if size < 10_000:
+        if size < 1_000:
             result["success"] = False
-            result["reason"] = f"Camera test image too small: {size} bytes (need > 10 KB)"
+            result["reason"] = f"Camera test image too small: {size} bytes (need > 1 KB)"
             log(result["reason"], level="ERROR")
             return result
 

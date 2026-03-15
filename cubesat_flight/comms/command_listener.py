@@ -26,6 +26,9 @@ _KNOWN_COMMANDS = {
     "resume_normal",
     "status_request",
     "retry_downlink",
+    "start_pass",
+    "end_pass",
+    "cell",
 }
 
 

@@ -140,3 +140,57 @@ def build_telemetry(
         "errors": errors or [],
         "recent_log": get_recent(),
     }
+
+def build_state_telemetry(state, imu, thermal, storage, pass_number):
+    """Lightweight telemetry packet for state-transition notifications.
+
+    Omits camera metadata, coverage, and downlink queue — those are only
+    meaningful during and after imaging. The GCS uses this to update the
+    state indicator on the dashboard in real time.
+
+    Args:
+        state:       Current state machine state string ("WAITING", "IMAGING", etc.)
+        imu:         IMU instance
+        thermal:     Thermal instance
+        storage:     StorageManager instance
+        pass_number: Current pass number (int)
+
+    Returns:
+        dict — JSON-serialisable telemetry packet.
+    """
+    accel = imu.get_acceleration()
+    gyro = imu.get_gyro()
+    capacity = storage.check_capacity()
+    cpu_temp = thermal.get_cpu_temp()
+    uptime_sec = int(time.monotonic() - _boot_time)
+
+    return {
+        "type": "telemetry",
+        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "cubesat_id": CUBESAT_ID,
+        "pass_number": pass_number,
+        "state": state,
+        "uptime_sec": uptime_sec,
+
+        "imu": {
+            "accel": [round(v, 4) for v in accel],
+            "gyro": [round(v, 4) for v in gyro],
+            "angular_rate": round(imu.get_angular_rate(), 4),
+            "stable": imu.is_stable(),
+            "nadir_locked": False,
+            "nadir_angle_deg": round(imu.get_nadir_angle(), 2),
+        },
+
+        "thermal": {
+            "cpu_temp_c": round(cpu_temp, 1),
+            "throttled": thermal.is_warning(),
+        },
+
+        "storage": {
+            "used_pct": capacity["used_pct"],
+            "free_mb": capacity["free_mb"],
+        },
+
+        "errors": [],
+        "recent_log": get_recent(),
+    }

@@ -73,9 +73,9 @@ def imaging_loop(
         # --- Process GCS commands ---
         for cmd in command_listener.get_pending():
             cmd_name = cmd.get("cmd")
-            if cmd_name == "set_cell":
+            if cmd_name in ("set_cell", "cell"):
                 current_grid_cell = (cmd["row"], cmd["col"])
-                log(f"Grid cell → {current_grid_cell} (GCS set_cell)")
+                log(f"Grid cell → {current_grid_cell} (GCS {cmd_name})")
             elif cmd_name == "end_pass":
                 log("GCS end_pass command received")
                 end_pass = True

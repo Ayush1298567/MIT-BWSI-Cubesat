@@ -179,3 +179,28 @@ class Transfer:
             except OSError:
                 pass
             self._sock = None
+
+def send_telemetry_now(telem_dict):
+    """Open a fresh TCP connection to DATA_PORT, send one telemetry packet, close.
+
+    Independent of any Transfer instance — safe to call at any state transition.
+    Non-fatal: returns True on ACK, False if GCS is unreachable or refused.
+    """
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(ACK_TIMEOUT_SEC)
+        sock.connect((GROUND_STATION_IP, DATA_PORT))
+        header, payload = build_telemetry_header(telem_dict)
+        line = json.dumps(header, default=str) + "\n"
+        sock.sendall(line.encode("utf-8"))
+        sock.sendall(payload)
+        sock.settimeout(ACK_TIMEOUT_SEC)
+        byte = sock.recv(1)
+        return byte == ACK
+    except OSError:
+        return False
+    finally:
+        try:
+            sock.close()
+        except OSError:
+            pass

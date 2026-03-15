@@ -8,6 +8,7 @@ import math
 import board
 import busio
 from adafruit_lsm6ds.lsm6dso32 import LSM6DSO32 as LSM6DS
+from adafruit_lsm6ds import AccelRange
 
 from config import ANGULAR_RATE_THRESHOLD
 
@@ -17,6 +18,7 @@ class IMU:
         i2c = busio.I2C(board.SCL, board.SDA)
         # LSM6DSO32 default I2C address is 0x6A (SDO/SA0 pin pulled low)
         self._imu = LSM6DS(i2c, address=0x6A)
+        self._imu.accelerometer_range = AccelRange.RANGE_4G
 
     def get_acceleration(self):
         """Return (x, y, z) acceleration in m/s².

@@ -65,6 +65,15 @@ NACK = b'\x15'  # ASCII NAK — GCS sends this if MD5 mismatch or decode failure
 #       → Send a telemetry packet immediately (out-of-band, outside downlink window)
 #
 #   {"cmd": "retry_downlink"}
+#   {"cmd": "start_pass"}
+#       -> Begin the next imaging pass (same as operator "start_pass" in terminal)
+#
+#   {"cmd": "end_pass"}
+#       -> Stop the current imaging pass early, proceed to IDLE
+#
+#   {"cmd": "cell", "row": R, "col": C}
+#       -> Set current grid cell to (R, C) during WAITING or IMAGING
+
 #       → Reset consecutive_failures counter, resume downlink attempts
 
 # === FILE NAMING CONVENTION ===
