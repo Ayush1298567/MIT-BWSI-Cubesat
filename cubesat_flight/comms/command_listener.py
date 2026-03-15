@@ -14,6 +14,7 @@ import socket
 import threading
 
 from config import COMMAND_PORT
+from protocol import ACK, NACK
 
 
 # Valid command names — used for validation before queuing.
@@ -96,7 +97,11 @@ class CommandListener:
                     line = line.strip()
                     if not line:
                         continue
-                    self._parse_and_queue(line)
+                    ok = self._parse_and_queue(line)
+                    try:
+                        conn.sendall(ACK if ok else NACK)
+                    except OSError:
+                        pass
         except OSError:
             pass                            # Socket error — connection dropped
         finally:
@@ -110,12 +115,13 @@ class CommandListener:
         try:
             cmd = json.loads(line_bytes.decode("utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError):
-            return  # Malformed command — discard silently
+            return False  # Malformed command
 
         if not isinstance(cmd, dict) or "cmd" not in cmd:
-            return  # Not a command dict — discard
+            return False  # Not a command dict
 
         if cmd["cmd"] not in _KNOWN_COMMANDS:
-            return  # Unknown command — discard to avoid injecting garbage
+            return False  # Unknown command
 
         self._queue.put(cmd)
+        return True
