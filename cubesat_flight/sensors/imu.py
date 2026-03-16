@@ -57,6 +57,16 @@ class IMU:
         cos_angle = max(-1.0, min(1.0, cos_angle))
         return math.degrees(math.acos(cos_angle))
 
+    def get_angular_velocity(self):
+        """Return [rx, ry, rz] angular velocity in deg/s (body frame).
+        Used by the GCS mosaic stitcher to estimate translation direction."""
+        gx, gy, gz = self.get_gyro()  # rad/s
+        return [
+            round(math.degrees(gx), 4),
+            round(math.degrees(gy), 4),
+            round(math.degrees(gz), 4),
+        ]
+
     def get_orientation(self):
         """Return orientation dict derived from accelerometer.
         Roll and pitch are computed from gravity vector.

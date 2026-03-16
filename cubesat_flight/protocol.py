@@ -65,16 +65,41 @@ NACK = b'\x15'  # ASCII NAK — GCS sends this if MD5 mismatch or decode failure
 #       → Send a telemetry packet immediately (out-of-band, outside downlink window)
 #
 #   {"cmd": "retry_downlink"}
+#       → Reset consecutive_failures counter, resume downlink attempts
+#
 #   {"cmd": "start_pass"}
-#       -> Begin the next imaging pass (same as operator "start_pass" in terminal)
+#       → Transition CubeSat from WAITING → IMAGING (begin a new imaging pass)
 #
 #   {"cmd": "end_pass"}
-#       -> Stop the current imaging pass early, proceed to IDLE
+#       → Transition CubeSat from IMAGING → PROCESSING (stop capture, begin downlink)
 #
 #   {"cmd": "cell", "row": R, "col": C}
-#       -> Set current grid cell to (R, C) during WAITING or IMAGING
+#       → Set the next grid cell to image (replaces set_cell for real-time control)
+#
+#   {"cmd": "reset_mission"}
+#       → Reset pass counter, clear coverage/queue/image index, start fresh
 
-#       → Reset consecutive_failures counter, resume downlink attempts
+# === IMU METADATA (optional) ===
+#
+# When the CubeSat has IMU integration enabled, the metadata dict in the
+# image transfer header may include an "imu" sub-object:
+#
+#   "metadata": {
+#       ...,
+#       "imu": {
+#           "roll_deg":  float,           # Roll angle in degrees
+#           "pitch_deg": float,           # Pitch angle in degrees
+#           "yaw_deg":   float,           # Yaw angle in degrees (heading)
+#           "angular_velocity": [rx, ry, rz]  # deg/s, body frame
+#       }
+#   }
+#
+# The GCS mosaic stitcher uses yaw_deg as a placement hint (initial rotation
+# estimate before SIFT matching). angular_velocity between consecutive images
+# can estimate translation direction.
+#
+# If "imu" is absent, the stitcher falls back to pure SIFT feature matching.
+# CubeSat-side changes to populate these fields will be implemented separately.
 
 # === FILE NAMING CONVENTION ===
 #

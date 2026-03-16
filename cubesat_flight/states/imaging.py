@@ -166,6 +166,7 @@ def imaging_loop(
         ang_rate = imu.get_angular_rate()
         nadir_angle_post = imu.get_nadir_angle()
         orientation = imu.get_orientation()
+        ang_vel = imu.get_angular_velocity()   # [rx, ry, rz] deg/s for GCS mosaic
         cam_meta = camera.get_metadata()
         novelty = coverage.get_novelty(current_grid_cell)
 
@@ -187,6 +188,7 @@ def imaging_loop(
             quality_details=details,
             quality_score=score,
             filepath=fpath,
+            angular_velocity=ang_vel,
         )
         sidecar_path = fpath.replace(".jpg", "_meta.json")
         metadata_builder.save(meta, sidecar_path)

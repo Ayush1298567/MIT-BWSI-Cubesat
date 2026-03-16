@@ -28,6 +28,7 @@ class MetadataBuilder:
         quality_details,
         quality_score,
         filepath,
+        angular_velocity=None,
     ):
         """Assemble the complete metadata dict for one captured image.
 
@@ -54,11 +55,13 @@ class MetadataBuilder:
         md5 = self._md5(filepath) if os.path.exists(filepath) else ""
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        # IMU block — yaw is excluded: no magnetometer on this hardware.
+        # IMU block — field names match the GCS protocol contract (protocol.py).
+        # yaw_deg is None: LSM6DSO32 has no magnetometer.
         imu_block = {
-            "roll": orientation.get("roll"),
-            "pitch": orientation.get("pitch"),
-            # yaw intentionally omitted — LSM6DSO32 has no magnetometer
+            "roll_deg": orientation.get("roll"),
+            "pitch_deg": orientation.get("pitch"),
+            "yaw_deg": None,              # No magnetometer — yaw unavailable
+            "angular_velocity": angular_velocity,  # [rx, ry, rz] deg/s or None
             "accel_magnitude": orientation.get("accel_mag"),
             "angular_rate": round(angular_rate, 4),
             "stable": angular_rate < 1.0,   # mirrors is_stable() logic
