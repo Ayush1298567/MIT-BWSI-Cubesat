@@ -110,7 +110,7 @@ def downlink(transfer, storage, queue, telemetry_dict, watchdog):
             i += 1
             continue
 
-        ok = transfer.send_file(filepath, item)
+        ok = transfer.send_file(filepath, item, watchdog=watchdog)
 
         if ok:
             log(f"  SENT {item['filename']} ({file_size} B)")

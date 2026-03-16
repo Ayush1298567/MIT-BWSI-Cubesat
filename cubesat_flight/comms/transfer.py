@@ -96,7 +96,7 @@ class Transfer:
             self.force_disconnect()
             return False
 
-    def send_file(self, filepath, metadata):
+    def send_file(self, filepath, metadata, watchdog=None):
         """Send one image file to the GCS with throttled chunked transfer.
 
         Protocol:
@@ -108,6 +108,8 @@ class Transfer:
         Args:
             filepath: Full path to the JPEG on disk.
             metadata: Metadata dict to embed in the header.
+            watchdog: Optional Watchdog instance — petted each chunk to prevent
+                      timeout during long transfers (~30s for a 35 KB image).
 
         Returns:
             True on ACK, False on NACK or socket error.
@@ -130,6 +132,8 @@ class Transfer:
                         break
                     self._sock.sendall(chunk)
                     self.bytes_sent += len(chunk)
+                    if watchdog is not None:
+                        watchdog.pet()
                     time.sleep(1.0)  # Real sleep — faithful UHF link simulation
         except OSError as exc:
             self.last_error = f"socket_error: {exc}"
