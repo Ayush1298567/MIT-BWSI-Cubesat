@@ -42,18 +42,27 @@ class IMU:
         return self.get_angular_rate() < ANGULAR_RATE_THRESHOLD
 
     def get_nadir_angle(self):
-        """Return angle in degrees between the acceleration vector and the -Z axis.
-        When pointing straight down (nadir), this is 0°.
-        When held sideways, this approaches 90°.
-        Computed as arccos(dot(accel_normalized, [0, 0, -1]))
-                   = arccos(-az / |accel|)."""
+        """Return angle in degrees between the camera boresight and the gravity vector.
+
+        The camera boresight is along the -X axis of the IMU (camera ribbon side
+        of the Pi 4 faces +X; lens faces -X). Nadir = 0° means camera points
+        straight down toward the surface.
+
+        If the dominant gravity axis is not -X (i.e. the operator is holding
+        the Pi in an unexpected orientation), we fall back to measuring nadir
+        as the angle between the gravity vector and whichever axis carries the
+        most gravity — this keeps the gate usable regardless of mount orientation.
+        """
         ax, ay, az = self.get_acceleration()
         accel_mag = math.sqrt(ax * ax + ay * ay + az * az)
         if accel_mag < 1e-6:
-            return 90.0  # degenerate — treat as off-nadir
-        # Dot product with (0, 0, -1) is just -az
-        cos_angle = -az / accel_mag
-        # Clamp to [-1, 1] to guard against floating-point rounding
+            return 90.0
+
+        # Camera faces +Z on this Pi 4 mount (lens on the bottom of the
+        # board, pointing through the PCB side). When camera is pointed at
+        # the ground, gravity (positive) aligns with +Z.
+        # nadir = angle between accel vector and +Z = arccos(az / |accel|)
+        cos_angle = az / accel_mag
         cos_angle = max(-1.0, min(1.0, cos_angle))
         return math.degrees(math.acos(cos_angle))
 

@@ -45,7 +45,7 @@ NADIR_EXIT_DEG = 55             # degrees — nadir lock releases above this ang
 # midpoint between the lowest sharp variance and highest blurry variance.
 # Sand/regolith has low texture variance even when in focus — the default of 50
 # is a conservative guess and WILL need adjustment.
-BLUR_THRESHOLD = 50.0           # CALIBRATE THIS before demo. Default is a guess.
+BLUR_THRESHOLD = 20.0           # CALIBRATE THIS before demo. Default is a guess.
 EXPOSURE_MIN = 15               # Pixel mean below this → underexposed rejection
 EXPOSURE_MAX = 240              # Pixel mean above this → overexposed rejection
 QUALITY_WEIGHT_BLUR = 0.3

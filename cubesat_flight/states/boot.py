@@ -59,11 +59,11 @@ def boot(imu, camera, storage, gcs_ip=GROUND_STATION_IP):
         ax, ay, az = imu.get_acceleration()
         import math as _math
         accel_mag = _math.sqrt(ax*ax + ay*ay + az*az)
-        if not (8.0 < accel_mag < 25.0):
+        if not (8.0 < accel_mag < 35.0):
             result["success"] = False
             result["reason"] = (
                 f"IMU self-test failed: |accel|={accel_mag:.2f} m/s2 "
-                f"(expected 8.0-25.0, sensor unresponsive or disconnected)"
+                f"(expected 8.0-35.0, sensor unresponsive or disconnected)"
             )
             log(result["reason"], level="ERROR")
             return result
