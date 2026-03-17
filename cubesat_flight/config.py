@@ -108,6 +108,25 @@ MEASURED_IMAGING_POWER_W = 0.0
 MEASURED_PROCESSING_POWER_W = 0.0
 MEASURED_DOWNLINK_POWER_W = 0.0
 
+# === MOSAIC GRID ===
+MOSAIC_GRID_CELL_PX = 80       # Coarse grid cell size in pixels (route planning)
+GRID_CELL_SIZE_CM = 1.0        # Physical size of one coarse grid cell in cm (demo scale)
+
+# === PIXEL SEGMENTATION ===
+SEG_GRID_CELL_PX = 20          # Fine grid cell size in pixels (high-res route planning)
+SEG_SAFETY_DILATION_PX = 3     # Dilate hazard masks by this many pixels as safety margin
+SEG_MIN_CONTOUR_AREA_PCT = 5.0     # Min contour area as % of bbox to keep (noise filter)
+SEG_FALLBACK_ELLIPSE_PCT = 60.0    # If no good contour, fill this % ellipse within bbox
+SEG_ENABLED = True             # Feature flag — False reverts to coarse grid routing
+SEG_COST_MAP = {               # Label → traversal cost for A* routing
+    0: 1,                      # UNSURVEYED — assume passable
+    1: 1,                      # SAND — safe
+    2: 1,                      # PLAIN_SURFACE — safe
+    3: 15,                     # SHADOW — uncertain, high cost
+    4: 20,                     # CRATER — very risky
+    5: 999,                    # BOULDER — impassable
+}
+
 # === DEMO SCALE ===
 DEMO_GSD_MM_PER_PX = 0.12      # Ground sample distance in demo (mm/px)
 FLIGHT_GSD_M_PER_PX = 29.5     # Ground sample distance in actual flight (m/px)
