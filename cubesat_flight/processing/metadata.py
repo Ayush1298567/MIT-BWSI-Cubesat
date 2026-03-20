@@ -29,6 +29,7 @@ class MetadataBuilder:
         quality_score,
         filepath,
         angular_velocity=None,
+        science=None,
     ):
         """Assemble the complete metadata dict for one captured image.
 
@@ -105,6 +106,8 @@ class MetadataBuilder:
             "file_size_bytes": file_size,
             "md5": md5,
             "downlink_status": "pending",
+            "science": science or {},
+            "summary_downlinked": False,
         }
 
     def save(self, meta_dict, filepath):

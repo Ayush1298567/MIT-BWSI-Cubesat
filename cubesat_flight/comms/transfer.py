@@ -19,7 +19,7 @@ from config import (
     MAX_GCS_CONNECT_FAILURES,
     THROTTLE_BYTES_PER_SEC,
 )
-from comms.packet import build_image_header, build_telemetry_header
+from comms.packet import build_image_header, build_science_header, build_telemetry_header
 from protocol import ACK, NACK
 
 
@@ -86,6 +86,19 @@ class Transfer:
             True on ACK, False on NACK or socket error.
         """
         header, payload = build_telemetry_header(telem_dict)
+        try:
+            self._send_header(header)
+            self._sock.sendall(payload)
+            self.bytes_sent += len(payload)
+            return self._wait_for_ack()
+        except OSError as exc:
+            self.last_error = f"socket_error: {exc}"
+            self.force_disconnect()
+            return False
+
+    def send_science_summary(self, summary_dict):
+        """Send a compact science-summary JSON packet to the GCS."""
+        header, payload = build_science_header(summary_dict)
         try:
             self._send_header(header)
             self._sock.sendall(payload)

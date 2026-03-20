@@ -45,6 +45,19 @@ def build_telemetry_header(telem_dict):
     return header, payload
 
 
+def build_science_header(summary_dict):
+    """Build the JSON transfer header for a compact science-summary packet."""
+    payload = json.dumps(summary_dict, default=str).encode("utf-8")
+    header = {
+        "type": "science_summary",
+        "filename": f"{summary_dict.get('filename', 'science')}.json",
+        "file_size": len(payload),
+        "md5": hashlib.md5(payload).hexdigest(),
+        "metadata": {},
+    }
+    return header, payload
+
+
 def md5_file(filepath):
     """Compute MD5 hex digest of a file. Reads in 64 KB chunks."""
     h = hashlib.md5()

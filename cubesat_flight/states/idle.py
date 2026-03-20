@@ -100,6 +100,13 @@ def _handle_idle_command(cmd, queue, storage, camera):
             camera._cam.set_controls({"AeEnable": False, "ExposureTime": int(exposure_us)})
             log(f"IDLE: exposure set to {exposure_us} µs by GCS command")
 
+    elif name in ("observe_cell", "revisit_cell"):
+        row, col = cmd.get("row"), cmd.get("col")
+        boosted = [i for i, m in enumerate(queue) if m.get("grid_cell") == [row, col]]
+        for i in reversed(boosted):
+            queue.insert(0, queue.pop(i))
+        log(f"IDLE: task '{name}' prioritised {len(boosted)} image(s) for cell ({row},{col})")
+
     elif name in ("enter_safe_mode", "resume_normal", "status_request",
                   "retry_downlink", "set_cell"):
         # These are handled by the main state machine loop, not by idle.

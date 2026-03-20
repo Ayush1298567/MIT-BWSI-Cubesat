@@ -24,6 +24,10 @@ from config import (
     MAX_IMAGES_PER_PASS,
     NADIR_EXIT_DEG,
     NADIR_TOLERANCE_DEG,
+    SCIENCE_WEIGHT_NOVELTY,
+    SCIENCE_WEIGHT_QUALITY,
+    SCIENCE_WEIGHT_REVISIT,
+    SCIENCE_WEIGHT_TASK_MATCH,
 )
 from utils.logger import log
 
@@ -39,6 +43,7 @@ def imaging_loop(
     metadata_builder,
     pass_number,
     current_grid_cell,
+    current_task,
     get_operator_input,
     watchdog=None,
 ):
@@ -53,10 +58,11 @@ def imaging_loop(
         get_operator_input: Callable() → str|None — non-blocking stdin line or None
 
     Returns:
-        (images_this_pass, rejections, current_grid_cell, nadir_locked, enter_safe_mode)
+        (images_this_pass, rejections, current_grid_cell, current_task, nadir_locked, enter_safe_mode)
         images_this_pass   list of metadata dicts for accepted images
         rejections         dict {"blur": N, "underexposed": N, "overexposed": N, "motion_blur": N}
         current_grid_cell  (row, col) — possibly updated by operator during the pass
+        current_task       dict|None — active GCS mission task for scoring/prioritisation
         nadir_locked       bool — final nadir lock state (passed to telemetry)
         enter_safe_mode    bool — True if thermal critical triggered during imaging
     """
@@ -79,12 +85,21 @@ def imaging_loop(
             if cmd_name in ("set_cell", "cell"):
                 current_grid_cell = (cmd["row"], cmd["col"])
                 log(f"Grid cell → {current_grid_cell} (GCS {cmd_name})")
+            elif cmd_name in ("observe_cell", "revisit_cell"):
+                current_task = {
+                    "cmd": cmd_name,
+                    "row": int(cmd["row"]),
+                    "col": int(cmd["col"]),
+                    "reason": cmd.get("reason", ""),
+                }
+                current_grid_cell = (current_task["row"], current_task["col"])
+                log(f"Mission task → {cmd_name} ({current_task['row']},{current_task['col']})")
             elif cmd_name == "end_pass":
                 log("GCS end_pass command received")
                 end_pass = True
             elif cmd_name == "enter_safe_mode":
                 log("GCS enter_safe_mode during imaging", level="WARN")
-                return images_this_pass, rejections, current_grid_cell, nadir_locked, True
+                return images_this_pass, rejections, current_grid_cell, current_task, nadir_locked, True
             elif cmd_name == "adjust_exposure":
                 exposure_us = cmd.get("exposure_us")
                 if exposure_us:
@@ -102,6 +117,7 @@ def imaging_loop(
                 parts = op_line.split()
                 try:
                     current_grid_cell = (int(parts[1]), int(parts[2]))
+                    current_task = None
                     log(f"Grid cell → {current_grid_cell} (operator input)")
                 except (IndexError, ValueError):
                     log("Bad cell command — format: cell R C", level="WARN")
@@ -121,7 +137,7 @@ def imaging_loop(
 
         if thermal.is_critical():
             log(f"THERMAL CRITICAL ({thermal.get_cpu_temp():.1f}°C) — entering safe mode", level="ERROR")
-            return images_this_pass, rejections, current_grid_cell, nadir_locked, True
+            return images_this_pass, rejections, current_grid_cell, current_task, nadir_locked, True
 
         # --- Adaptive capture interval ---
         interval = CAPTURE_INTERVAL_SEC
@@ -173,6 +189,46 @@ def imaging_loop(
         # --- Quality gate ---
         score, status, details = quality_gate.score_image(fpath, ang_rate, novelty)
 
+        task_match = 1.0 if (
+            current_task
+            and (current_task.get("row"), current_task.get("col")) == current_grid_cell
+        ) else 0.0
+        revisit_bonus = 1.0 if current_task and current_task.get("cmd") == "revisit_cell" and task_match else 0.0
+        science_value = (
+            SCIENCE_WEIGHT_QUALITY * float(score) +
+            SCIENCE_WEIGHT_NOVELTY * float(novelty) +
+            SCIENCE_WEIGHT_TASK_MATCH * task_match +
+            SCIENCE_WEIGHT_REVISIT * revisit_bonus
+        )
+        science_reasons = []
+        if task_match:
+            science_reasons.append("matches active GCS task")
+        if revisit_bonus:
+            science_reasons.append("requested revisit for confirmation")
+        if novelty >= 0.8:
+            science_reasons.append("high coverage novelty")
+        if score >= 0.75:
+            science_reasons.append("strong image quality")
+        if not science_reasons:
+            science_reasons.append("routine survey capture")
+        science_block = {
+            "science_value": round(science_value, 3),
+            "science_reasons": science_reasons,
+            "task": current_task,
+            "summary": {
+                "filename": fname,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "pass_number": pass_number,
+                "grid_cell": list(current_grid_cell),
+                "science_value": round(science_value, 3),
+                "science_reasons": science_reasons,
+                "hazard_hint": "UNKNOWN",
+                "change_hint": 0,
+                "capture_quality": round(float(score), 3),
+                "novelty": round(float(novelty), 3),
+            },
+        }
+
         # --- Metadata sidecar ---
         meta = metadata_builder.build(
             filename=fname,
@@ -189,6 +245,7 @@ def imaging_loop(
             quality_score=score,
             filepath=fpath,
             angular_velocity=ang_vel,
+            science=science_block,
         )
         sidecar_path = fpath.replace(".jpg", "_meta.json")
         metadata_builder.save(meta, sidecar_path)
@@ -222,4 +279,4 @@ def imaging_loop(
 
         time.sleep(interval)
 
-    return images_this_pass, rejections, current_grid_cell, nadir_locked, False
+    return images_this_pass, rejections, current_grid_cell, current_task, nadir_locked, False

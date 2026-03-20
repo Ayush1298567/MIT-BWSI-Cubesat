@@ -94,6 +94,22 @@ def downlink(transfer, storage, queue, telemetry_dict, watchdog):
 
         item = queue[i]
         file_size = item.get("file_size_bytes", 0)
+        summary = item.get("science", {}).get("summary")
+
+        if summary and not item.get("summary_downlinked"):
+            if bytes_sent + len(str(summary).encode("utf-8")) <= data_budget:
+                ok_summary = transfer.send_science_summary(summary)
+                if ok_summary:
+                    summary_bytes = transfer.bytes_sent
+                    bytes_sent += summary_bytes
+                    transfer.bytes_sent = 0
+                    storage.mark_summary_sent(item["filename"])
+                    item["summary_downlinked"] = True
+                    log(f"  SUMMARY {item['filename']} ({summary_bytes} B)")
+                else:
+                    log(f"  SUMMARY FAIL {item['filename']} ({transfer.last_error})", level="WARN")
+                    if transfer.last_error != "NACK":
+                        break
 
         if bytes_sent + file_size > data_budget:
             log(

@@ -83,6 +83,12 @@ MAX_GCS_CONNECT_FAILURES = 3
 # during pass 3's IDLE for pass 1's P2 images.
 P2_AGING_PASSES = 2
 
+# === MISSION SCIENCE SCORING ===
+SCIENCE_WEIGHT_QUALITY = 0.35
+SCIENCE_WEIGHT_NOVELTY = 0.35
+SCIENCE_WEIGHT_TASK_MATCH = 0.20
+SCIENCE_WEIGHT_REVISIT = 0.10
+
 # === STORAGE PATHS ===
 IMAGE_DIR = "/home/cubesat/cubesat_flight/data/images"
 TELEMETRY_DIR = "/home/cubesat/cubesat_flight/data/telemetry"

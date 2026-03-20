@@ -30,6 +30,9 @@ _KNOWN_COMMANDS = {
     "start_pass",
     "end_pass",
     "cell",
+    "observe_cell",
+    "revisit_cell",
+    "reset_mission",
 }
 
 

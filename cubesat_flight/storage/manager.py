@@ -116,6 +116,11 @@ class StorageManager:
             entry["downlink_status"] = "failed"
             entry["retry_count"] = entry.get("retry_count", 0) + 1
 
+    def mark_summary_sent(self, filename):
+        """Mark the science summary as successfully downlinked."""
+        if filename in self._image_index:
+            self._image_index[filename]["summary_downlinked"] = True
+
     # ------------------------------------------------------------------
     # Priority queue builder
     # ------------------------------------------------------------------
@@ -140,8 +145,9 @@ class StorageManager:
 
         def sort_key(m):
             tier = _TIER_RANK.get(m.get("priority_tier", "P3"), 2)
+            science_value = m.get("science", {}).get("science_value", 0.0)
             score = m.get("quality", {}).get("combined_score", 0.0)
-            return (tier, -score)
+            return (tier, -science_value, -score)
 
         pending.sort(key=sort_key)
         return pending

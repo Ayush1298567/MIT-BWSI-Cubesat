@@ -137,6 +137,25 @@ def _handle_gcs_command(cmd, camera, transfer, state_ref):
         # These are only meaningful in IDLE/IMAGING — log and discard.
         log(f"GCS command '{name}' received outside IDLE — will apply next pass")
 
+    elif name in ("observe_cell", "revisit_cell"):
+        try:
+            state_ref["current_task"] = {
+                "cmd": name,
+                "row": int(cmd["row"]),
+                "col": int(cmd["col"]),
+                "reason": cmd.get("reason", ""),
+            }
+            state_ref["current_grid_cell"] = (
+                state_ref["current_task"]["row"],
+                state_ref["current_task"]["col"],
+            )
+            log(
+                f"Mission task staged → {name} "
+                f"({state_ref['current_task']['row']},{state_ref['current_task']['col']})"
+            )
+        except (KeyError, ValueError):
+            log(f"Malformed mission task command: {cmd!r}", level="WARN")
+
     else:
         log(f"Unknown GCS command: {name!r}", level="WARN")
 
@@ -179,6 +198,8 @@ def _wait_for_start_pass(command_listener, watchdog, camera, transfer, thermal, 
                     log(f'Grid cell pre-set \u2192 {state_ref["current_grid_cell"]} (GCS)')
                 except (KeyError, ValueError):
                     log("Malformed cell command from GCS", level="WARN")
+            elif name in ("observe_cell", "revisit_cell"):
+                _handle_gcs_command(cmd, camera, transfer, state_ref)
             else:
                 _handle_gcs_command(cmd, camera, transfer, state_ref)
                 if state_ref.get("enter_safe"):
@@ -229,6 +250,7 @@ def _wait_for_start_pass(command_listener, watchdog, camera, transfer, thermal, 
             parts = op.split()
             try:
                 state_ref["current_grid_cell"] = (int(parts[1]), int(parts[2]))
+                state_ref["current_task"] = None
                 log(f"Grid cell pre-set → {state_ref['current_grid_cell']}")
             except (IndexError, ValueError):
                 print("  Bad cell command. Format: cell R C")
@@ -276,6 +298,7 @@ def main():
         "gcs_suspended": False,
         "enter_safe": False,
         "current_grid_cell": DEFAULT_GRID_CELL,
+        "current_task": None,
     }
 
     # Recovery file from previous run (watchdog restart or manual shutdown).
@@ -364,6 +387,7 @@ def main():
             (images_this_pass,
              rejections,
              state_ref["current_grid_cell"],
+             state_ref["current_task"],
              nadir_locked,
              enter_safe) = imaging_loop(
                 imu=imu,
@@ -376,6 +400,7 @@ def main():
                 metadata_builder=metadata_builder,
                 pass_number=pass_number,
                 current_grid_cell=state_ref["current_grid_cell"],
+                current_task=state_ref["current_task"],
                 get_operator_input=_get_operator_input,
                 watchdog=watchdog,
             )
