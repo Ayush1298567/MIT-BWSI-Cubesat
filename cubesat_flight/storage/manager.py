@@ -16,11 +16,13 @@ import shutil
 from config import (
     IMAGE_DIR,
     IMAGE_INDEX_FILE,
+    LOG_DIR,
     P2_AGING_PASSES,
     QUEUE_FILE,
     RECOVERY_FILE,
     STORAGE_CRITICAL_PCT,
     STORAGE_WARNING_PCT,
+    TELEMETRY_DIR,
 )
 
 _TIER_RANK = {"P1": 0, "P2": 1, "P3": 2}
@@ -32,6 +34,50 @@ class StorageManager:
         self._image_index = {}  # filename → metadata dict
         os.makedirs(IMAGE_DIR, exist_ok=True)
         os.makedirs(os.path.dirname(QUEUE_FILE), exist_ok=True)
+
+    # ------------------------------------------------------------------
+    # Full data reset — called at the start of every new session
+    # ------------------------------------------------------------------
+
+    def reset_all_data(self):
+        """Delete all persisted mission data so each session starts clean.
+
+        Clears: captured images, metadata sidecars, queue, image index,
+        recovery state, coverage grid, telemetry logs, and log files.
+        """
+        # Wipe captured images and sidecars.
+        if os.path.isdir(IMAGE_DIR):
+            for fname in os.listdir(IMAGE_DIR):
+                fpath = os.path.join(IMAGE_DIR, fname)
+                if os.path.isfile(fpath):
+                    os.remove(fpath)
+
+        # Wipe telemetry files.
+        if os.path.isdir(TELEMETRY_DIR):
+            for fname in os.listdir(TELEMETRY_DIR):
+                fpath = os.path.join(TELEMETRY_DIR, fname)
+                if os.path.isfile(fpath):
+                    os.remove(fpath)
+
+        # Wipe log files.
+        if os.path.isdir(LOG_DIR):
+            for fname in os.listdir(LOG_DIR):
+                fpath = os.path.join(LOG_DIR, fname)
+                if os.path.isfile(fpath):
+                    os.remove(fpath)
+
+        # Remove JSON persistence files.
+        for path in (QUEUE_FILE, IMAGE_INDEX_FILE, RECOVERY_FILE):
+            if os.path.exists(path):
+                os.remove(path)
+
+        # Also remove coverage file.
+        from processing.coverage import COVERAGE_FILE
+        if os.path.exists(COVERAGE_FILE):
+            os.remove(COVERAGE_FILE)
+
+        # Reset in-memory index.
+        self._image_index = {}
 
     # ------------------------------------------------------------------
     # Capacity

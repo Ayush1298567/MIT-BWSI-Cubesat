@@ -272,6 +272,8 @@ def main():
     log("=== MuraltZ CubeSat flight software starting ===")
 
     storage = StorageManager()
+    storage.reset_all_data()
+    log("Session reset: all previous mission data cleared")
     storage.load_image_index()
 
     command_listener = CommandListener()

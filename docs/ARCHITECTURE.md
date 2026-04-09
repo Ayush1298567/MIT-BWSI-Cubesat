@@ -2,6 +2,8 @@
 ## Raspberry Pi 4 (2GB) | Artemis Lunar Navigator | MIT BWSI 2025-2026
 ## Fixes applied: #1 grid cell input, #2 physical flow + loose thresholds, #3 blur calibration, #4 data budget math, #5 P2 aging, #7 auto-exposure, #10 nadir hysteresis, #11 GCS offline handling
 
+**See also:** [FLIGHT_SOFTWARE_DEEP_DIVE.md](./FLIGHT_SOFTWARE_DEEP_DIVE.md) — line-by-line module reference, state machine, downlink math, and implementation caveats.
+
 ---
 
 ## 1. Hardware
