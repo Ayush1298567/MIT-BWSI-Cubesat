@@ -16,9 +16,9 @@ import json
 import os
 from datetime import datetime, timezone
 
-from config import GRID_ROWS, GRID_COLS
+from config import DATA_ROOT, GRID_ROWS, GRID_COLS
 
-COVERAGE_FILE = "/home/cubesat/cubesat_flight/data/coverage.json"
+COVERAGE_FILE = os.path.join(DATA_ROOT, "coverage.json")
 
 # Quality score above which a cell is considered well-covered (redundant).
 _GOOD_QUALITY_THRESHOLD = 0.7

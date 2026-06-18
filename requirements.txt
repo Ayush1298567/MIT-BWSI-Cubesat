@@ -1,0 +1,4 @@
+# Hardware-independent processing and dashboard dependencies.
+Flask>=3.0,<4
+numpy>=1.26,<3
+opencv-python-headless>=4.9,<5

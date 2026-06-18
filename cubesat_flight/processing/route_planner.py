@@ -13,7 +13,7 @@ import numpy as np
 
 import config
 
-ROUTE_VIS_DIR = "/home/cubesat/cubesat_flight/data/processed/route_maps"
+ROUTE_VIS_DIR = os.path.join(config.PROCESSED_DIR, "route_maps")
 
 # Cost above which a cell is considered impassable
 _IMPASSABLE_COST = 500

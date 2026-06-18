@@ -133,7 +133,7 @@ class MosaicGrid:
         fr0 = max(0, my // SEG_GRID_CELL_PX)
         fc0 = max(0, mx // SEG_GRID_CELL_PX)
         fr1 = min(self._fine_rows, (my + mh + SEG_GRID_CELL_PX - 1) // SEG_GRID_CELL_PX)
-        fc1 = min(self._fine_cols, (mw + mx + SEG_GRID_CELL_PX - 1) // SEG_GRID_CELL_PX)
+        fc1 = min(self._fine_cols, (mx + mw + SEG_GRID_CELL_PX - 1) // SEG_GRID_CELL_PX)
 
         hazard_threshold = 0.25  # 25% coverage triggers worst-label assignment
 

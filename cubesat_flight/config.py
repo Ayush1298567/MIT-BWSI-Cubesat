@@ -1,5 +1,15 @@
 # config.py — All mission parameters for MuraltZ CubeSat flight software
 
+import os
+
+
+def _env_int(name, default):
+    return int(os.getenv(name, str(default)))
+
+
+def _env_float(name, default):
+    return float(os.getenv(name, str(default)))
+
 MISSION_NAME = "MuraltZ"
 CUBESAT_ID = "MURALTZ-01"
 
@@ -62,9 +72,9 @@ GRID_COLS = 8
 DEFAULT_GRID_CELL = (0, 0)
 
 # === DOWNLINK ===
-GROUND_STATION_IP = "192.168.1.225"
-DATA_PORT = 5000
-COMMAND_PORT = 5001
+GROUND_STATION_IP = os.getenv("GROUND_STATION_IP", "192.168.1.225")
+DATA_PORT = _env_int("CUBESAT_DATA_PORT", 5000)
+COMMAND_PORT = _env_int("CUBESAT_COMMAND_PORT", 5001)
 THROTTLE_BYTES_PER_SEC = 1200   # 9600 bps / 8 = UHF flight link equivalent
 ACK_TIMEOUT_SEC = 5
 MAX_RETRIES_PER_IMAGE = 3
@@ -84,12 +94,14 @@ MAX_GCS_CONNECT_FAILURES = 3
 P2_AGING_PASSES = 2
 
 # === STORAGE PATHS ===
-IMAGE_DIR = "/home/cubesat/cubesat_flight/data/images"
-TELEMETRY_DIR = "/home/cubesat/cubesat_flight/data/telemetry"
-LOG_DIR = "/home/cubesat/cubesat_flight/data/logs"
-QUEUE_FILE = "/home/cubesat/cubesat_flight/data/queue.json"
-IMAGE_INDEX_FILE = "/home/cubesat/cubesat_flight/data/image_index.json"
-RECOVERY_FILE = "/home/cubesat/cubesat_flight/data/recovery.json"
+DATA_ROOT = os.getenv("CUBESAT_DATA_ROOT", "/home/cubesat/cubesat_flight/data")
+IMAGE_DIR = os.path.join(DATA_ROOT, "images")
+TELEMETRY_DIR = os.path.join(DATA_ROOT, "telemetry")
+LOG_DIR = os.path.join(DATA_ROOT, "logs")
+PROCESSED_DIR = os.path.join(DATA_ROOT, "processed")
+QUEUE_FILE = os.path.join(DATA_ROOT, "queue.json")
+IMAGE_INDEX_FILE = os.path.join(DATA_ROOT, "image_index.json")
+RECOVERY_FILE = os.path.join(DATA_ROOT, "recovery.json")
 STORAGE_WARNING_PCT = 80        # Start cleanup of P3 images above this
 STORAGE_CRITICAL_PCT = 98       # Stop imaging above this
 

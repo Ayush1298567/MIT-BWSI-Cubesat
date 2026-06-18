@@ -17,7 +17,12 @@ import os
 import cv2
 import numpy as np
 
-from config import SEG_SAFETY_DILATION_PX, SEG_MIN_CONTOUR_AREA_PCT, SEG_FALLBACK_ELLIPSE_PCT
+from config import (
+    PROCESSED_DIR,
+    SEG_FALLBACK_ELLIPSE_PCT,
+    SEG_MIN_CONTOUR_AREA_PCT,
+    SEG_SAFETY_DILATION_PX,
+)
 
 # Semantic labels
 UNSURVEYED = 0
@@ -38,7 +43,7 @@ LABEL_COLORS = {
 }
 
 # Where segmentation visualizations are saved
-SEG_VIS_DIR = "/home/cubesat/cubesat_flight/data/processed/segmentation_maps"
+SEG_VIS_DIR = os.path.join(PROCESSED_DIR, "segmentation_maps")
 
 
 class PixelSegmenter:

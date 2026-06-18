@@ -1,0 +1,4 @@
+-r requirements.txt
+
+# Install these on Raspberry Pi OS, where picamera2 is normally supplied by apt.
+adafruit-circuitpython-lsm6ds>=4.5,<5
