@@ -1,178 +1,105 @@
-# MuraltZ CubeSat Flight Software
+# MuraltZ CubeSat — Flight Software
 
-Raspberry Pi flight software developed for an MIT Beaver Works Summer Institute
-CubeSat prototype. MuraltZ gates image capture using live IMU data, scores and
-prioritizes observations onboard, and downlinks the highest-value science within
-a deliberately constrained communications window.
+Raspberry Pi flight software for a CubeSat prototype. It gates camera captures on live IMU stability and nadir pointing, scores every image on-board for quality and novelty, and downlinks the highest-priority images over a deliberately throttled link. Built at the MIT Beaver Works Summer Institute.
 
-> Companion repository: [MuraltZ Ground Control Station](https://github.com/Ayush1298567/MIT-Cubesat-Ground-Control-Station)
+The companion ground station lives in [MIT-Cubesat-Ground-Control-Station](https://github.com/Ayush1298567/MIT-Cubesat-Ground-Control-Station).
 
-<p align="center">
-  <img src="Images/AyushG_054319.jpg" width="31%" alt="MuraltZ CubeSat prototype">
-  <img src="Images/AyushG_193548.jpg" width="31%" alt="CubeSat test setup">
-  <img src="Images/AyushG_194145.jpg" width="31%" alt="CubeSat terrain demonstration">
-</p>
+## Overview
 
-## Mission architecture
+A real satellite cannot photograph everything and cannot downlink everything. Power, pointing, and link budget force it to choose. This flight software makes those choices on-board:
 
-```mermaid
-stateDiagram-v2
-    [*] --> Boot
-    Boot --> Waiting: self-tests pass
-    Boot --> SafeMode: hardware/thermal failure
-    Waiting --> Imaging: start_pass
-    Imaging --> Idle: end_pass or window elapsed
-    Imaging --> SafeMode: critical fault
-    Idle --> Downlink: queue persisted
-    Downlink --> Waiting: pass complete
-    SafeMode --> Waiting: resume_normal
+- It only takes a picture when the spacecraft is actually pointed at the ground and holding still.
+- It rejects blurred, over/under-exposed, and redundant frames before they take up storage or link time.
+- It ranks what survives and sends the most valuable images first over a link slow enough that selection is mandatory, not optional.
+
+The link is throttled with a real `time.sleep` per chunk, so the constraint the spacecraft reasons about is genuinely present at runtime rather than assumed away.
+
+## How it works
+
+The flight loop is an operator-stepped state machine (`cubesat_flight/main.py`). After boot it waits for a pass command, then cycles **IMAGING → IDLE → DOWNLINK** and returns to waiting.
+
+```
+BOOT ──▶ WAITING ──▶ IMAGING ──▶ IDLE ──▶ DOWNLINK ──▶ WAITING
+            ▲                                              │
+            └──────────────────────────────────────────────┘
 ```
 
-```mermaid
-flowchart LR
-    IMU["LSM6DSO32 IMU"] --> Gate["Stability + nadir gate"]
-    Camera["Pi Camera 3"] --> Capture["Image capture"]
-    Gate --> Capture
-    Capture --> Quality["Blur + exposure + motion + novelty"]
-    Quality --> Queue["P1/P2/P3 persistent queue"]
-    Queue --> Link["9.6 kbps-equivalent throttled downlink"]
-    Link --> GCS["Ground Control Station"]
-    GCS -->|"tasking and control"| Commands["Command listener"]
-    Commands --> Gate
-```
+**BOOT** — IMU sanity check, a test capture that must decode as a JPEG, a disk-capacity check, and a ground-station connection attempt. A missing ground station is non-fatal: the spacecraft drops into autonomous mode and keeps imaging.
 
-### Engineering highlights
+**IMAGING** (`states/imaging.py`) — every few seconds it reads the IMU and captures only when **both** conditions hold:
+- **Nadir lock** — pointing angle within 45° of nadir, with hysteresis (the lock holds until the angle exceeds 55°) to stop chattering at the boundary.
+- **Stability** — gyro magnitude below 1.0 rad/s.
 
-- Explicit mission state machine with boot self-tests and recoverable safe mode.
-- IMU-gated capture with nadir hysteresis to prevent unstable threshold chatter.
-- Onboard image-quality scoring and novelty-aware downlink prioritization.
-- Persistent queue, image index, coverage map, and watchdog recovery state.
-- ACK/NACK transfers with retries, MD5 integrity metadata, and link throttling.
-- Pixel-level terrain segmentation and A* route planning components.
-- Configurable runtime paths/network settings and hardware-independent tests.
+Each captured frame runs a quality gate (`processing/quality.py`) on four axes — blur (Laplacian variance), exposure (mean-pixel bounds), motion (gyro rate at capture time), and novelty — and is either accepted with a priority tier (P1/P2/P3, assigned by novelty against an 8×8 coverage grid) or rejected with a logged reason.
 
-## Hardware
+**IDLE** (`states/idle.py`) — builds the downlink priority queue, ages stale images down a tier, deletes the lowest-priority images when storage runs high, and applies any queued ground commands.
 
-| Component | Device | Interface |
-|---|---|---|
-| Flight computer | Raspberry Pi 4 (2 GB) | Raspberry Pi OS |
-| Camera | Pi Camera Module 3 / IMX708 | CSI, `picamera2` |
-| IMU | LSM6DSO32 | I²C at `0x6A` |
-| Ground link | Pi Wi-Fi | TCP data and command channels |
-| Thermal input | Pi CPU sensor | Linux sysfs |
+**DOWNLINK** (`states/downlink.py`, `comms/transfer.py`) — sends telemetry, then images highest-priority first in 1200-byte chunks, each followed by a real one-second sleep, until the per-pass byte budget or time window is spent. Every image carries an MD5 header; the receiver ACK/NACKs each one, with up to three retries before an image is marked corrupt.
 
-## Flight data path
+Supporting subsystems: a watchdog thread that saves recovery state and restarts the process if the main loop stalls, thermal monitoring that throttles imaging at 70 °C and drops to safe mode at 80 °C, and a command listener that accepts validated JSON commands from the ground station over TCP.
 
-```mermaid
-sequenceDiagram
-    participant O as Operator / GCS
-    participant F as Flight state machine
-    participant S as Sensors
-    participant Q as Quality + storage
-    participant G as Ground station
+### Offline analysis layer
 
-    O->>F: start_pass / set grid cell
-    F->>S: sample acceleration and gyro
-    alt stable and nadir locked
-        F->>S: capture JPEG + camera metadata
-        S->>Q: image, pose, exposure, timestamp
-        Q->>Q: score quality and assign priority
-    else unstable or off-nadir
-        F->>F: skip capture and keep monitoring
-    end
-    F->>G: telemetry, then prioritized images
-    G-->>F: ACK or NACK
-```
+The repo also contains a hardware-independent image-analysis library — pixel-level terrain segmentation, an A\* route planner over a cost grid, and a Flask inspection dashboard (`processing/pipeline.py`, `processing/route_planner.py`, `processing/dashboard/`). This runs offline and in the test suite; it is **not** wired into the in-flight loop. It is exercised by `test_processing.py` in CI.
 
-## Raspberry Pi setup
+## Tech
 
-The flight entry point expects Raspberry Pi OS with camera support enabled.
-`picamera2` is normally installed from the OS package repository:
+- **Python 3** on **Raspberry Pi 4**
+- **LSM6DSO32 IMU** over I²C (Adafruit CircuitPython) — accelerometer + gyro; no magnetometer, so yaw is not estimated
+- **Pi Camera Module 3** via `picamera2`
+- **OpenCV** / **NumPy** for the quality gate and offline analysis
+- **Flask** for the offline inspection dashboard
+- On-board Wi-Fi stands in for a UHF radio; CPU temperature read from sysfs
+
+## Running it
+
+On the Pi (hardware):
 
 ```bash
-sudo apt update
 sudo apt install -y python3-picamera2 python3-opencv
-git clone https://github.com/Ayush1298567/MIT-BWSI-Cubesat.git
-cd MIT-BWSI-Cubesat
-python3 -m venv --system-site-packages .venv
-source .venv/bin/activate
 pip install -r requirements-hardware.txt
-```
-
-Configure the ground-station address and data location:
-
-```bash
-export GROUND_STATION_IP=192.168.1.225
-export CUBESAT_DATA_ROOT=/home/cubesat/cubesat_flight/data
-```
-
-Verify hardware before flight:
-
-```bash
 cd cubesat_flight
-python test_hardware.py
-python test_quality.py 10
-python main.py
+python test_hardware.py     # IMU / camera / thermal / storage / link self-check
+python main.py              # then type: start_pass, cell R C, end_pass, status, shutdown
 ```
 
-The quality calibration step matters: the correct blur threshold depends on the
-texture and lighting of the physical terrain testbed.
-
-## Operator commands
-
-| Command | Effect |
-|---|---|
-| `start_pass` / `end_pass` | Begin or stop an imaging window |
-| `cell R C` | Tag subsequent captures with the current survey cell |
-| `status` | Print storage, temperature, and link state |
-| `eclipse_on` / `eclipse_off` | Switch manual low-light mode on/off |
-| `kill_link` / `resume_link` | Exercise link-loss recovery |
-| `resume` | Recover from safe mode |
-| `shutdown` | Persist state and stop cleanly |
-
-Equivalent JSON commands can be sent from the companion GCS over port `5001`.
-
-## Hardware-independent verification
-
-On a laptop:
+On a laptop (no hardware — runs the offline analysis tests):
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
 pip install -r requirements.txt
 cd cubesat_flight
 export CUBESAT_DATA_ROOT="$(mktemp -d)"
-python -m compileall -q .
 python -m unittest -v test_processing.py
 ```
 
-These checks exercise segmentation-to-grid projection and A* behavior without
-requiring a Pi camera or IMU.
+`GROUND_STATION_IP` and the data root are environment-overridable (see `.env.example`).
 
-## Repository map
+## Design constraints and honest limits
 
-```text
-cubesat_flight/
-├── states/       # boot, imaging, idle, downlink, safe mode
-├── sensors/      # camera and LSM6DSO32 adapters
-├── processing/   # quality, coverage, segmentation, route planning
-├── comms/        # packet framing, command listener, transfer client
-├── storage/      # persistent queue, image index, recovery state
-├── utils/        # telemetry, watchdog, thermal monitor, logging
-└── dashboard/    # lightweight segmentation/route inspection UI
-```
+This is an educational prototype, and the code is explicit about what is and isn't calibrated:
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the detailed protocol,
-state behavior, metadata schema, data budget, and calibration procedure.
+- The blur threshold is a placeholder that must be calibrated against the real imaging surface before a demo; it is flagged as such in `config.py`.
+- There is no magnetometer, so the spacecraft tracks pitch and roll but not yaw.
+- Wi-Fi substitutes for a flight radio; the 1200 byte/s throttle reproduces a 9600-baud UHF link.
+- The values below are real, designed behaviors in the code — not measured flight results.
 
-## Design constraints
+| Behavior | Value (default) |
+| --- | --- |
+| Stability gate (gyro) | < 1.0 rad/s |
+| Nadir lock / release | 45° / 55° (hysteresis) |
+| Blur gate (Laplacian variance) | < 20.0 (uncalibrated) |
+| Exposure gate (mean pixel) | 15–240 |
+| Link throttle | 1200 bytes/s (real per-chunk sleep) |
+| Per-pass budget | 72,000 bytes / 60 s window |
+| Thermal throttle / safe mode | 70 °C / 80 °C |
+| Watchdog restart | main-loop stall > 30 s |
 
-The prototype intentionally simulates a `9,600 bps` UHF-class link by limiting
-payload throughput to `1,200 bytes/s`. At the default 60-second downlink window,
-only about 72 KB is available, so onboard selection is part of the mission
-architecture rather than a dashboard-only feature.
+## TODO — visual assets to add
 
-This is educational prototype software, not flight-certified avionics. Hardware
-thresholds require calibration, yaw is unavailable because the IMU has no
-magnetometer, Wi-Fi stands in for a radio, and route-planning outputs depend on
-the accuracy of the generated terrain map.
+The repo has no usable hardware or demo imagery yet. Add and reference here:
+
+- `docs/img/hardware.jpg` — photo of the assembled Pi + camera + IMU prototype.
+- `docs/img/imaging-demo.gif` — a short clip showing frames accepted/rejected as the rig moves (motion blur → reject, held still on target → accept).
+- `docs/img/priority-queue.png` — terminal screenshot of a downlink pass sending P1 images first.
+
+(The existing `Images/` folder holds raw, unlabeled test captures and is not linked from this README.)
