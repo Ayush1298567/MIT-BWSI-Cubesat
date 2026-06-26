@@ -2,7 +2,7 @@
 
 Raspberry Pi flight software for a CubeSat prototype. It gates camera captures on live IMU stability and nadir pointing, scores every image on-board for quality and novelty, and downlinks the highest-priority images over a deliberately throttled link. Built at the MIT Beaver Works Summer Institute.
 
-The companion ground station lives in [MIT-Cubesat-Ground-Control-Station](https://github.com/Ayush1298567/MIT-Cubesat-Ground-Control-Station).
+The companion ground station lives in [MIT-Cubesat-Ground-Control-Station](https://github.com/ayushg8/MIT-Cubesat-Ground-Control-Station).
 
 ## Overview
 
